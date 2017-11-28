@@ -6,12 +6,34 @@ import com.nilhcem.fakesmtp.core.exception.UncaughtExceptionHandler;
 import com.nilhcem.fakesmtp.gui.listeners.MainWindowListener;
 import com.nilhcem.fakesmtp.model.UIModel;
 import com.nilhcem.fakesmtp.server.SMTPServerHandler;
+
+import dorkbox.systemTray.Entry;
+import dorkbox.systemTray.Menu;
+import dorkbox.systemTray.MenuItem;
+import dorkbox.systemTray.SystemTray;
+import dorkbox.systemTray.ui.swing.SwingUIFactory;
+import dorkbox.systemTray.util.HeavyCheckMark;
+import dorkbox.util.swing.DefaultMenuItemUI;
+import dorkbox.util.swing.DefaultPopupMenuUI;
+import dorkbox.util.swing.DefaultSeparatorUI;
+
 import org.slf4j.LoggerFactory;
 
+import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JSeparator;
+import javax.swing.plaf.MenuItemUI;
+import javax.swing.plaf.PopupMenuUI;
+import javax.swing.plaf.SeparatorUI;
+
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Image;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -26,10 +48,49 @@ import org.slf4j.Logger;
 public final class MainFrame {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainFrame.class);
+	
+	static {
+		SystemTray.SWING_UI = new SwingUIFactory() {
+
+			@Override
+			public PopupMenuUI getMenuUI(JPopupMenu jPopupMenu, Menu entry) {
+				return new DefaultPopupMenuUI(jPopupMenu) {
+		            @Override
+		            public
+		            void installUI(final JComponent c) {
+		                super.installUI(c);
+		            }
+		        };
+			}
+
+			@Override
+			public MenuItemUI getItemUI(JMenuItem jMenuItem, Entry entry) {
+				return new DefaultMenuItemUI(jMenuItem) {
+		            @Override
+		            public
+		            void installUI(final JComponent c) {
+		                super.installUI(c);
+		            }
+		        };
+			}
+
+			@Override
+			public SeparatorUI getSeparatorUI(JSeparator jSeparator) {
+				return new DefaultSeparatorUI(jSeparator);
+			}
+
+			@Override
+			public String getCheckMarkIcon(Color color, int checkMarkSize, int targetImageSize) {
+				return HeavyCheckMark.get(color, checkMarkSize, targetImageSize);
+			}
+			
+		};
+	}
 
 	private final JFrame mainFrame = new JFrame(Configuration.INSTANCE.get("application.title"));
 	private final MenuBar menu = new MenuBar(this);
 	private final MainPanel panel = new MainPanel(menu);
+	private final SystemTray systemTray = SystemTray.get();
 
 	/**
 	 * Creates the main window and makes it visible.
@@ -63,6 +124,15 @@ public final class MainFrame {
 			@Override
 			public void windowClosing(WindowEvent e) {
 				close();
+				if (systemTray != null) {
+					systemTray.shutdown();
+				}
+			}
+			@Override
+			public void windowIconified(WindowEvent e) {
+				if (systemTray != null) {
+					mainFrame.setVisible(false);
+				}
 			}
 		});
 
@@ -99,8 +169,29 @@ public final class MainFrame {
 			panel.getSaveMsgTextField().get().setText(emailsDir);
 			UIModel.INSTANCE.setSavePath(emailsDir);
 		}
-
+		
 		mainFrame.setVisible(true);
+		
+		if (systemTray != null) {
+			systemTray.setImage(iconImage);
+			systemTray.setStatus(Configuration.INSTANCE.get("application.title"));
+			systemTray.getMenu().add(new MenuItem("restore", new ActionListener() {
+		        @Override
+		        public
+		        void actionPerformed(final ActionEvent e) {
+		        	mainFrame.setVisible(true);
+		        	mainFrame.setState(JFrame.NORMAL);
+		        }
+		    })).setShortcut('r');
+			systemTray.getMenu().add(new MenuItem("quit", new ActionListener() {
+		        @Override
+		        public
+		        void actionPerformed(final ActionEvent e) {
+		        	close();
+		            systemTray.shutdown();
+		        }
+		    })).setShortcut('q');
+		}
 	}
 
 	public void close() {
